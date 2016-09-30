@@ -1,11 +1,10 @@
-from troposphere import (
-    Template, ec2, GetAZs, Select, Ref, Parameter, Base64, Join, GetAtt,
-    Output, efs, ecr, iam
-)
+from troposphere import (Template, ec2, GetAZs, Select, Ref, Parameter, Base64,
+                         Join, GetAtt, Output, efs, ecr)
 
-from awacs import (
-    aws, sts)
-
+from troposphere.iam import (Role, InstanceProfile)
+# from troposphere.ecr import Repository
+from awacs.aws import (Allow, Policy, Principal, Statement)
+from awacs.sts import (AssumeRole)
 from rvb.networking import Zone
 
 t = Template()
@@ -13,42 +12,53 @@ t = Template()
 t.add_description("CF Troposphere template")
 t.add_version("2010-09-09")
 
-instance_type = t.add_parameter(
-    Parameter(
-        "InstanceType",
-        Type="String",
-        Default="t2.micro",
-        AllowedValues=["t2.micro", "t2.medium"],
-        Description="Instance types",
+instance_type = t.add_parameter(Parameter(
+    "InstanceType",
+    Type="String",
+    Default="t2.micro",
+    AllowedValues=["t2.micro", "t2.medium"],
+    Description="Instance types",
+))
 
-    )
-)
+management_ip = t.add_parameter(Parameter(
+    "ManagementIP",
+    Type="String",
+    Description="Your white listed IP"
+))
 
-management_ip = t.add_parameter(
-    Parameter(
-        "ManagementIP",
-        Type="String",
-        Description="Your white listed IP"
-    )
-)
-
-ami = t.add_parameter(
-    Parameter(
-        "Ami",
-        Type="String",
-        Description="Ami",
-        Default="ami-665b8406"
-    )
-)
+ami = t.add_parameter(Parameter(
+    "Ami",
+    Type="String",
+    Description="Ami",
+    Default="ami-665b8406"
+))
 
 go_pipelines = t.add_resource(efs.FileSystem(
     "GoPipelines"
 ))
 
-repository = t.add_resource(
-    ecr.Repository(
-        "GoRegistry"
-    ))
+repository = t.add_resource(ecr.Repository(
+    "GoRegistry"
+))
+
+docker_role = t.add_resource(Role(
+    "DockerRole",
+    AssumeRolePolicyDocument=Policy(
+        Version="2012-10-17",
+        Statement=[
+            Statement(
+                Effect=Allow,
+                Action=[AssumeRole],
+                Principal=Principal("Service", ["ec2.amazonaws.com"])
+            )
+        ]
+    )
+))
+
+docker_instanceprofile = t.add_resource(InstanceProfile(
+    "Dockerprofile",
+    Roles=[Ref(docker_role)]
+))
 
 my_vpc = t.add_resource(ec2.VPC(
     "GoVpc",
@@ -57,45 +67,41 @@ my_vpc = t.add_resource(ec2.VPC(
     EnableDnsHostnames=True
 ))
 
-public_sg = t.add_resource(
-    ec2.SecurityGroup(
-        "RvbGoSG",
-        VpcId=Ref(my_vpc),
-        GroupDescription="rvb go test SG",
-        SecurityGroupIngress=[
-            ec2.SecurityGroupRule(
-                IpProtocol="tcp",
-                FromPort="22",
-                ToPort="22",
-                CidrIp=Ref(management_ip),
-            ),
-            ec2.SecurityGroupRule(
-                IpProtocol="tcp",
-                FromPort="8153",
-                ToPort="8154",
-                CidrIp=Ref(management_ip),
-            )
-        ]
-    )
-)
+public_sg = t.add_resource(ec2.SecurityGroup(
+    "RvbGoSG",
+    VpcId=Ref(my_vpc),
+    GroupDescription="rvb go test SG",
+    SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol="tcp",
+            FromPort="22",
+            ToPort="22",
+            CidrIp=Ref(management_ip),
+        ),
+        ec2.SecurityGroupRule(
+            IpProtocol="tcp",
+            FromPort="8153",
+            ToPort="8154",
+            CidrIp=Ref(management_ip),
+        )
+    ]
+))
 
-public_mount_target_sg = t.add_resource(
-    ec2.SecurityGroup(
-        "MountTargetSG",
-        VpcId=Ref(my_vpc),
-        GroupDescription="efs SG",
-        SecurityGroupIngress=[
-            ec2.SecurityGroupRule(
-                IpProtocol="tcp",
-                FromPort="2049",
-                ToPort="2049",
-                SourceSecurityGroupId=Ref(public_sg)
-                # CidrIp=Ref(management_ip),
-            ),
-        ]
+public_mount_target_sg = t.add_resource(ec2.SecurityGroup(
+    "MountTargetSG",
+    VpcId=Ref(my_vpc),
+    GroupDescription="efs SG",
+    SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol="tcp",
+            FromPort="2049",
+            ToPort="2049",
+            SourceSecurityGroupId=Ref(public_sg)
+            # CidrIp=Ref(management_ip),
+        ),
+    ]
 
-    )
-)
+))
 
 public_zone = Zone(public=True)
 
@@ -116,19 +122,17 @@ for k, v in [('a', 0), ('b', 1), ('c', 2)]:
 
 my_igw = t.add_resource(ec2.InternetGateway(
     "GoIgw",
-
 ))
 
 my_igw_attachement = t.add_resource(ec2.VPCGatewayAttachment(
     "GoIgwAttachment",
     VpcId=Ref(my_vpc),
     InternetGatewayId=Ref(my_igw),
-
 ))
+
 route_table = t.add_resource(ec2.RouteTable(
     "RouteTable",
     VpcId=Ref(my_vpc),
-
 ))
 
 public_route = t.add_resource(ec2.Route(
@@ -137,41 +141,7 @@ public_route = t.add_resource(ec2.Route(
     DestinationCidrBlock="0.0.0.0/0",
     GatewayId=Ref(my_igw),
     RouteTableId=Ref(route_table),
-
 ))
-
-# docker_role = t.add_resource(iam.Role(
-#     "DockerRole",
-#
-# ))
-
-docker_role = t.add_resource(iam.Role(
-    "DockerRole",
-    AssumeRolePolicyDocument=aws.Policy(
-        Version="2012-10-17",
-        Statement=[
-            aws.Statement(
-                Effect=aws.Allow,
-                Action=[aws.AssumeRole],
-                Principal=aws.Principal("Service", ["ec2.amazonaws.com"])
-            )
-        ]
-    )
-))
-
-
-docker_instanceprofile = t.add_resource(iam.InstanceProfile(
-    "Dockerprofile",
-    Roles=[Ref(docker_role)]
-))
-
-#        "RvbGoSG",
-#        GroupDescription="rvb go test SG",
-#        SecurityGroupEgress=[],
-#        SecurityGroupIngress=[],
-#        VpcId=
-#        Tag =
-
 
 for s in public_zone.subnets:
     t.add_resource(ec2.SubnetRouteTableAssociation(
@@ -205,6 +175,7 @@ instance = t.add_resource(ec2.Instance(
     InstanceType=Ref(instance_type),
     KeyName="rvb-test",
     ImageId=Ref(ami),  # Amazon Linux AMI
+    IamInstanceProfile=Ref(docker_instanceprofile),
     SecurityGroupIds=[Ref(public_sg)],
     SubnetId=Ref(public_zone.subnets[az]),
     UserData=Base64(
