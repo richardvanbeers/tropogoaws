@@ -1,11 +1,12 @@
 from troposphere import (Template, ec2, GetAZs, Select, Ref, Parameter, Base64,
                          Join, GetAtt, Output, efs, ecr)
 
-from troposphere.iam import (Role, InstanceProfile)
-# from troposphere.ecr import Repository
+from troposphere.iam import (Role, InstanceProfile, Policy as TPolicy)
 from awacs.aws import (Allow, Policy, Principal, Statement)
 from awacs.sts import (AssumeRole)
 from rvb.networking import Zone
+
+from pprint import pprint
 
 t = Template()
 
@@ -37,9 +38,17 @@ go_pipelines = t.add_resource(efs.FileSystem(
     "GoPipelines"
 ))
 
-repository = t.add_resource(ecr.Repository(
+go_repository = t.add_resource(ecr.Repository(
     "GoRegistry"
 ))
+
+go_repository_arn = Join(
+    ":",
+    ["arn:aws:ecr",
+     Ref("AWS::Region"),
+     Ref("AWS::AccountId"),
+     Join("/", ["repository", Ref(go_repository)])]
+)
 
 docker_role = t.add_resource(Role(
     "DockerRole",
@@ -52,8 +61,53 @@ docker_role = t.add_resource(Role(
                 Principal=Principal("Service", ["ec2.amazonaws.com"])
             )
         ]
-    )
+    ),
+    Policies=[
+        TPolicy(
+            PolicyName="bla",
+            PolicyDocument={
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Effect": "Allow",
+                    "Action": [
+                        "ecr:*"
+                    ],
+                    "Resource": "*"
+                }]
+            }
+        )
+    ]
+
+    # Policies=[
+    #     Policy(
+    #         PolicyDocument=Policy(
+    #             Statement=[
+    #                 Statement(
+    #                     Effect=Allow,
+    #                     Action=[Action("ecr", "*")],
+    #                     Resource=["arn:aws:ecr:us-west-2:632826021673"
+    #                              ":repository/rvbgo-goreg-ncln6u7mjdb6"]
+    #                     # [go_repository_arn]
+    #                     # Resource=[Join(":",
+    #                     #                ["arn:aws:ecr",
+    #                     #                 Ref("AWS::Region"),
+    #                     #                 Ref("AWS::AccountId"),
+    #                     #                 go_repository_arn
+    #                     #                 # Join("/",
+    #                     #                 #      ["repository",
+    #                     #                 #       Ref(go_repository)])
+    #                     #                 ]
+    #                     #                )
+    #                     #           ]
+    #                 )]
+    #         )
+    #     )
+    # ]
 ))
+
+# goal ex.
+# : "arn:aws:ecr:us-west-2:632826021673:repository/rvbgo-goreg-ncln6u7mjdb6"
+
 
 docker_instanceprofile = t.add_resource(InstanceProfile(
     "Dockerprofile",
@@ -100,7 +154,6 @@ public_mount_target_sg = t.add_resource(ec2.SecurityGroup(
             # CidrIp=Ref(management_ip),
         ),
     ]
-
 ))
 
 public_zone = Zone(public=True)
@@ -197,6 +250,11 @@ instance = t.add_resource(ec2.Instance(
     )
 
 ))
+
+# instance_id = Ref(instance)
+
+# i_id = GetAtt(instance, "InstanceId")
+
 t.add_output(Output(
     "PubIp",
     Value=GetAtt(instance, "PublicIp")
@@ -208,5 +266,11 @@ t.add_output(Output(
 ))
 
 goal = "mount -t nfs4 -o  $(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone).file-system-ID.efs.aws-region.amazonaws.com:/ efs"
+
+# pprint(vars(Ref(repository)))
+#
+# pprint(vars(r_arn))
+# pprint(r_arn)
+
 
 print t.to_json()
