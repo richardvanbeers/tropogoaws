@@ -64,7 +64,7 @@ docker_role = t.add_resource(Role(
     ),
     Policies=[
         TPolicy(
-            PolicyName="bla",
+            PolicyName="ECRPolicy",
             PolicyDocument={
                 "Version": "2012-10-17",
                 "Statement": [{
@@ -72,7 +72,7 @@ docker_role = t.add_resource(Role(
                     "Action": [
                         "ecr:*"
                     ],
-                    "Resource": "*"
+                    "Resource": go_repository_arn
                 }]
             }
         )
