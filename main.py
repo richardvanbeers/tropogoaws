@@ -1,12 +1,9 @@
-from troposphere import (Template, ec2, GetAZs, Select, Ref, Parameter, Base64,
-                         Join, GetAtt, Output, efs, ecr)
-
-from troposphere.iam import (Role, InstanceProfile, Policy as TPolicy)
+from troposphere import (Template, GetAZs, Select, Ref, Parameter, Base64,
+                         Join, GetAtt, Output,)
+from troposphere import iam, ec2, efs, ecr
 from awacs.aws import (Allow, Policy, Principal, Statement)
 from awacs.sts import (AssumeRole)
 from rvb.networking import Zone
-
-from pprint import pprint
 
 t = Template()
 
@@ -50,7 +47,7 @@ go_repository_arn = Join(
      Join("/", ["repository", Ref(go_repository)])]
 )
 
-docker_role = t.add_resource(Role(
+docker_role = t.add_resource(iam.Role(
     "DockerRole",
     AssumeRolePolicyDocument=Policy(
         Version="2012-10-17",
@@ -63,7 +60,7 @@ docker_role = t.add_resource(Role(
         ]
     ),
     Policies=[
-        TPolicy(
+        iam.Policy(
             PolicyName="ECRPolicy",
             PolicyDocument={
                 "Version": "2012-10-17",
@@ -77,39 +74,12 @@ docker_role = t.add_resource(Role(
             }
         )
     ]
-
-    # Policies=[
-    #     Policy(
-    #         PolicyDocument=Policy(
-    #             Statement=[
-    #                 Statement(
-    #                     Effect=Allow,
-    #                     Action=[Action("ecr", "*")],
-    #                     Resource=["arn:aws:ecr:us-west-2:632826021673"
-    #                              ":repository/rvbgo-goreg-ncln6u7mjdb6"]
-    #                     # [go_repository_arn]
-    #                     # Resource=[Join(":",
-    #                     #                ["arn:aws:ecr",
-    #                     #                 Ref("AWS::Region"),
-    #                     #                 Ref("AWS::AccountId"),
-    #                     #                 go_repository_arn
-    #                     #                 # Join("/",
-    #                     #                 #      ["repository",
-    #                     #                 #       Ref(go_repository)])
-    #                     #                 ]
-    #                     #                )
-    #                     #           ]
-    #                 )]
-    #         )
-    #     )
-    # ]
 ))
-
 # goal ex.
 # : "arn:aws:ecr:us-west-2:632826021673:repository/rvbgo-goreg-ncln6u7mjdb6"
 
 
-docker_instanceprofile = t.add_resource(InstanceProfile(
+docker_instanceprofile = t.add_resource(iam.InstanceProfile(
     "Dockerprofile",
     Roles=[Ref(docker_role)]
 ))
@@ -201,7 +171,6 @@ for s in public_zone.subnets:
         "Assoc{}".format(s.title),
         RouteTableId=Ref(route_table),
         SubnetId=Ref(s)
-
     ))
 
 az = 0
