@@ -1,8 +1,11 @@
 from troposphere import (Template, GetAZs, Select, Ref, Parameter, Base64,
-                         Join, GetAtt, Output,)
+                         Join, GetAtt, Output, )
 from troposphere import iam, ec2, efs, ecr
+from troposphere.s3 import Bucket, PublicRead
+
 from awacs.aws import (Allow, Policy, Principal, Statement)
 from awacs.sts import (AssumeRole)
+
 from rvb.networking import Zone
 
 t = Template()
@@ -34,6 +37,12 @@ ami = t.add_parameter(Parameter(
 go_pipelines = t.add_resource(efs.FileSystem(
     "GoPipelines"
 ))
+
+go_backup_s3_bucket = t.add_resource(Bucket("S3Bucket",
+                                            AccessControl=PublicRead, )
+                                     )
+
+go_backup_s3_bucket_arn = GetAtt(go_backup_s3_bucket, "Arn")
 
 go_repository = t.add_resource(ecr.Repository(
     "GoRegistry"
@@ -70,6 +79,19 @@ docker_role = t.add_resource(iam.Role(
                         "ecr:*"
                     ],
                     "Resource": go_repository_arn
+                }]
+            }
+        ),
+        iam.Policy(
+            PolicyName="S3Policy",
+            PolicyDocument={
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:*"
+                    ],
+                    "Resource": "*"
                 }]
             }
         )
@@ -212,6 +234,7 @@ instance = t.add_resource(ec2.Instance(
                 # Join(" ", ["echo", GetAtt(my_vpc, "DefaultSecurityGroup")]),
                 "yum -y install nfs-utils",
                 "mkdir -p {}".format(mount_point),
+                "chown go:go /efs/artifacts",
                 full_mount_cmd
 
             ]
@@ -222,7 +245,7 @@ instance = t.add_resource(ec2.Instance(
 
 # instance_id = Ref(instance)
 
-# i_id = GetAtt(instance, "InstanceId")
+# i_id = GetAtt(instance, "InstanceId"):
 
 t.add_output(Output(
     "PubIp",
