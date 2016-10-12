@@ -28,7 +28,8 @@ def backup(config, s3_bucket_name=None, prefix=None):
 
     backup_path = response_object['path']  # use this form for immediate fail
     backup_file = "{}/{}.tgz".format(config["backup_path"], os.path.basename(backup_path))
-
+    if not os.path.exists(os.path.dirname(backup_file)):
+        os.makedirs(os.path.dirname(backup_file))
     make_tarfile(backup_file, backup_path)
     os.chmod(backup_file, 0600)
     s3 = boto3.resource('s3')
