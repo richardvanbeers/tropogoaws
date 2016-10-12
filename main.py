@@ -38,8 +38,7 @@ go_pipelines = t.add_resource(efs.FileSystem(
     "GoPipelines"
 ))
 
-go_backup_s3_bucket = t.add_resource(Bucket("S3Bucket",
-                                            AccessControl=PublicRead, )
+go_backup_s3_bucket = t.add_resource(Bucket("S3Bucket",)
                                      )
 
 # go_backup_s3_bucket_arn = GetAtt(go_backup_s3_bucket, "Arn")

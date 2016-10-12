@@ -1,7 +1,7 @@
 #!/usr/bin/env python
+#!/usr/bin/env python
 
-import requests, json, tarfile, os, boto
-from boto.s3.connection import S3Connection
+import subprocess, requests, json, tarfile, os, boto3
 
 
 from requests.auth import HTTPBasicAuth
@@ -31,13 +31,15 @@ backup_file = backup_dir+".tgz"
 
 make_tarfile(backup_file, backup_path)
 
+s3 = boto3.resource('s3')
+bucket = s3.Bucket(s3_bucket_name)
+bucket.upload_file(backup_file, 'go_server/backups/config/{}'.format(os.path.basename(backup_file)))
+#conn = S3Connection()
+#bucket = conn.get_bucket('s3_bucket_name')
+#key = boto.s3.key.Key(bucket, 'backup_file')
 
-conn = S3Connection()
-bucket = conn.get_bucket('s3_bucket_name')
-key = boto.s3.key.Key(bucket, 'backup_file')
-
-with open('backup_file') as f:
-    key.send_file(f)
+command = ['service', 'go-server', 'stop']
+subprocess.call(command, shell=False)
 
 # print backup_path
 # print r.text
