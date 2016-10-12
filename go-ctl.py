@@ -8,12 +8,14 @@ def make_tarfile(output_filename, source_dir):
         tar.add(source_dir, arcname=os.path.basename(source_dir))
 
 
-def backup(config):
+def backup(config, s3_bucket_name=None, prefix=None):
     backup_endpoint = "{}/go/api/backups".format(config["host"])
     config_endpoint = "{}/go/api/admin/config.xml".format(config["host"])
 
-    s3_bucket_name = config['bucket']
-    prefix = config["prefix"]
+    if s3_bucket_name is None:
+        s3_bucket_name = config['bucket']
+    if prefix is None:
+        prefix = config["prefix"]
     headers = {'Confirm': 'true', 'Accept': 'application/vnd.go.cd.v1+json'}
 
     r = requests.post(backup_endpoint, auth=(config["username"], config["password"]), headers=headers)
@@ -32,7 +34,7 @@ def backup(config):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(s3_bucket_name)
     bucket.upload_file(backup_file, '{}/config/{}'.format(prefix, os.path.basename(backup_file)))
-
+    os.remove(backup_file)
     r = requests.post(config_endpoint, auth=(config["username"], config["password"]), headers=headers)
     artifacts_dir = None
     for node in ET.ElementTree(ET.fromstring(r.text)).getroot().findall('server'):
@@ -65,6 +67,12 @@ set_parser.set_defaults(which='set')
 get_parser = subparsers.add_parser("get", help="Get config value associated with key")
 get_parser.set_defaults(which='get')
 get_parser.add_argument('key', help='an integer for the accumulator')
+
+backup_parser = subparsers.add_parser("backup", help="Backups the pipelines and config")
+backup_parser.add_argument("--bucket", default=None, help="Bucket to use")
+backup_parser.add_argument("--prefix", default=None, help="Bucket prefix")
+backup_parser.set_defaults(which="backup")
+
 args = parser.parse_args()
 
 print args
@@ -87,3 +95,5 @@ if args.which == "set":
 elif args.which == "get":
     print "Now we get the value of {}".format(args.key)
     print config.get(args.key)
+elif args.which == "backup":
+    backup(config, s3_bucket_name=args.bucket, prefix=args.prefix)
