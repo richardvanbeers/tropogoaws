@@ -36,7 +36,11 @@ def backup(config, s3_bucket_name=None, prefix=None):
     bucket = s3.Bucket(s3_bucket_name)
     bucket.upload_file(backup_file, '{}/config/{}'.format(prefix, os.path.basename(backup_file)))
     os.remove(backup_file)
-    r = requests.post(config_endpoint, auth=(config["username"], config["password"]), headers=headers)
+    r = requests.get(config_endpoint, auth=(config["username"], config["password"]))
+    if not r.status_code == 200:
+        print 'Something went wrong when getting the xml'
+        print r.text
+        exit(2)
     artifacts_dir = None
     for node in ET.ElementTree(ET.fromstring(r.text)).getroot().findall('server'):
         artifacts_dir = node.get('artifactsdir')
