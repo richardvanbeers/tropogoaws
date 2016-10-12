@@ -1,0 +1,16 @@
+awacs==0.6.0
+awscli==1.10.66
+boto==2.42.0
+boto3==1.4.1
+botocore==1.4.56
+colorama==0.3.7
+docutils==0.12
+futures==3.0.5
+jmespath==0.9.0
+pyasn1==0.1.9
+python-dateutil==2.5.3
+rsa==3.4.2
+s3transfer==0.1.4
+six==1.10.0
+troposphere==1.8.1
+upstart==0.3.4

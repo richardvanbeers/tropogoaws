@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#!/usr/bin/env python
 
 import subprocess, requests, json, tarfile, os, boto3
 
@@ -41,6 +40,13 @@ bucket.upload_file(backup_file, 'go_server/backups/config/{}'.format(os.path.bas
 command = ['service', 'go-server', 'stop']
 subprocess.call(command, shell=False)
 
+command = ['aws', 's3', 'sync','/efs/artifacts/pipelines', 's3://{}/go_server/backups/pipelines'.format(s3_bucket_name)]
+subprocess.call(command, shell=False)
+
+
+command = ['service', 'go-server', 'start']
+subprocess.call(command, shell=False)
+print 'hello'
 # print backup_path
 # print r.text
 # goal:
