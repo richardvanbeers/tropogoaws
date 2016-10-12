@@ -11,7 +11,6 @@ def make_tarfile(output_filename, source_dir):
 def backup(config):
     backup_endpoint = "{}/go/api/backups".format(config["host"])
     config_endpoint = "{}/go/api/admin/config.xml".format(config["host"])
-    s3_bucket_name = 'rvbgo-s3bucket-10utfkgtekakz'
 
     s3_bucket_name = config['bucket']
     prefix = config["prefix"]
@@ -35,8 +34,12 @@ def backup(config):
     bucket.upload_file(backup_file, '{}/config/{}'.format(prefix, os.path.basename(backup_file)))
 
     r = requests.post(config_endpoint, auth=(config["username"], config["password"]), headers=headers)
+    artifacts_dir = None
     for node in ET.ElementTree(ET.fromstring(r.text)).getroot().findall('server'):
         artifacts_dir = node.get('artifactsdir')
+    if artifacts_dir is None:
+        print "Could not find artifacts dir"
+        exit(2)
     command = ['service', 'go-server', 'stop']
     subprocess.call(command, shell=False)
 
@@ -68,7 +71,8 @@ print args
 config = {
     "backup_path": "/tmp/go-backups",
     "prefix": "go_server/backups",
-    "host": "http://localhost:8153"
+    "host": "http://localhost:8153",
+    "bucket": "rvbgo-s3bucket-10utfkgtekakz"
 }
 if os.path.isfile(args.config_file):
     with open(args.config_file) as data_file:
