@@ -38,40 +38,42 @@ def backup(config, s3_bucket_name=None, prefix=None):
 
     r = requests.post(backup_endpoint, auth=(config["username"], config["password"]), headers=headers)
     response_object = json.loads(r.text)
-
+    logger.debug("Json response")
+    logger.debug(r.text)
     if not r.status_code == 200:
-        print 'Something is wrong'
-        print r.text
-        exit(2)
+        logger.error("Non 200 response from server %s", r.text)
+        exit(1)
 
-    backup_path = response_object['path']  # use this form for immediate fail
+    backup_path = response_object['path']
     backup_file = "{}/{}.tgz".format(config["backup_path"], os.path.basename(backup_path))
     if not os.path.exists(os.path.dirname(backup_file)):
         os.makedirs(os.path.dirname(backup_file))
+        logger.info("Creating backup dir %s",os.path.dirname(backup_file))
     make_tarfile(backup_file, backup_path)
+    logger.info("Created tarball from %s in %s", backup_path, backup_file)
     os.chmod(backup_file, 0600)
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(s3_bucket_name)
     bucket.upload_file(backup_file, '{}/config/{}'.format(prefix, os.path.basename(backup_file)))
+    logger.info("Uploaded %s to %s", backup_file, '{}/config/{}'.format(prefix, os.path.basename(backup_file)))
     os.remove(backup_file)
     r = requests.get(config_endpoint, auth=(config["username"], config["password"]))
     if not r.status_code == 200:
-        print 'Something went wrong when getting the xml'
-        print r.text
-        exit(2)
+        logger.error("Non 200 response from server %s", r.text)
+        exit(1)
     artifacts_dir = None
     for node in ET.ElementTree(ET.fromstring(r.text)).getroot().findall('server'):
         artifacts_dir = node.get('artifactsdir')
     if artifacts_dir is None:
-        print "Could not find artifacts dir"
-        exit(2)
+        logger.error("Could not find artifacts dir %s", r.text)
+        exit(1)
     command = ['service', 'go-server', 'stop']
     subprocess.call(command, shell=False)
-
+    logger.info("Starting s3 sync")
     command = ['aws', 's3', 'sync', '{}/pipelines'.format(artifacts_dir),
                's3://{}/go_server/backups/pipelines'.format(s3_bucket_name)]
     subprocess.call(command, shell=False)
-
+    logger.info("Done syncing %s to %s",'{}/pipelines'.format(artifacts_dir), 's3://{}/go_server/backups/pipelines'.format(s3_bucket_name))
     command = ['service', 'go-server', 'start']
     subprocess.call(command, shell=False)
 
