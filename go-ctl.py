@@ -25,10 +25,10 @@ def backup(config, s3_bucket_name=None, prefix=None):
     backup_endpoint = "{}/go/api/backups".format(config["host"])
     config_endpoint = "{}/go/api/admin/config.xml".format(config["host"])
 
-    if s3_bucket_name is None:
+    if s3_bucket_name is not None:
         s3_bucket_name = config['bucket']
         logger.info("Changed bucket to %s", s3_bucket_name)
-    if prefix is None:
+    if prefix is not None:
         prefix = config["prefix"]
         logger.info("Changed prefix to %s", prefix)
     headers = {'Confirm': 'true', 'Accept': 'application/vnd.go.cd.v1+json'}
