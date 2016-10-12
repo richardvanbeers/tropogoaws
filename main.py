@@ -42,7 +42,7 @@ go_backup_s3_bucket = t.add_resource(Bucket("S3Bucket",
                                             AccessControl=PublicRead, )
                                      )
 
-go_backup_s3_bucket_arn = GetAtt(go_backup_s3_bucket, "Arn")
+# go_backup_s3_bucket_arn = GetAtt(go_backup_s3_bucket, "Arn")
 
 go_repository = t.add_resource(ecr.Repository(
     "GoRegistry"
@@ -253,8 +253,8 @@ t.add_output(Output(
 ))
 
 t.add_output(Output(
-    "PubDns",
-    Value=GetAtt(instance, "PublicDnsName")
+    "S3BucketName",
+    Value=Ref(go_backup_s3_bucket)
 ))
 
 goal = "mount -t nfs4 -o  $(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone).file-system-ID.efs.aws-region.amazonaws.com:/ efs"
