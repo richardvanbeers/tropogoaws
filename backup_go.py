@@ -1,9 +1,5 @@
 #!/usr/bin/env python
-
 import subprocess, requests, json, tarfile, os, boto3
-
-
-from requests.auth import HTTPBasicAuth
 
 url = 'http://ec2-54-218-128-110.us-west-2.compute.amazonaws.com:8153/go/api/backups'
 headers = {'Confirm': 'true', 'Accept': 'application/vnd.go.cd.v1+json'}
@@ -23,31 +19,22 @@ if not r.status_code == 200:
     print r.text
     exit(2)
 
-
 backup_path = response_object['path']  # use this form for immediate fail
 backup_dir = os.path.basename(backup_path)
-backup_file = backup_dir+".tgz"
+backup_file = backup_dir + ".tgz"
 
 make_tarfile(backup_file, backup_path)
 
 s3 = boto3.resource('s3')
 bucket = s3.Bucket(s3_bucket_name)
 bucket.upload_file(backup_file, 'go_server/backups/config/{}'.format(os.path.basename(backup_file)))
-#conn = S3Connection()
-#bucket = conn.get_bucket('s3_bucket_name')
-#key = boto.s3.key.Key(bucket, 'backup_file')
 
 command = ['service', 'go-server', 'stop']
 subprocess.call(command, shell=False)
 
-command = ['aws', 's3', 'sync','/efs/artifacts/pipelines', 's3://{}/go_server/backups/pipelines'.format(s3_bucket_name)]
+command = ['aws', 's3', 'sync', '/efs/artifacts/pipelines',
+           's3://{}/go_server/backups/pipelines'.format(s3_bucket_name)]
 subprocess.call(command, shell=False)
-
 
 command = ['service', 'go-server', 'start']
 subprocess.call(command, shell=False)
-print 'hello'
-# print backup_path
-# print r.text
-# goal:
-# curl 'http://ec2-54-218-128-110.us-west-2.compute.amazonaws.com:8153/go/api/backups' -u 'admin:admin' -H 'Confirm: true' -H 'Accept: application/vnd.go.cd.v1+json' -X POST
