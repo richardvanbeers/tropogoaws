@@ -9,10 +9,10 @@ def setup_logger():
     :return: logger
     """
     logger = logging.getLogger()
+    logging.basicConfig()
     logger.setLevel(logging.INFO)
     logging.getLogger('requests').setLevel(logging.WARNING)
     logging.getLogger('botocore').setLevel(logging.WARNING)
-    logging.basicConfig()
     return logger
 
 def make_tarfile(output_filename, source_dir):
