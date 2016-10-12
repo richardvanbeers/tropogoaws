@@ -13,7 +13,7 @@ def setup_logger():
     logger.setLevel(logging.INFO)
     logging.getLogger('requests').setLevel(logging.WARNING)
     logging.getLogger('botocore').setLevel(logging.WARNING)
-    logging.getLogger('urllib').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
     return logger
 
 def make_tarfile(output_filename, source_dir):
