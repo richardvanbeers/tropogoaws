@@ -22,6 +22,17 @@ def make_tarfile(output_filename, source_dir):
         tar.add(source_dir, arcname=os.path.basename(source_dir))
 
 
+def make_go_password_file(password):
+
+    pass
+
+def update_config(key,value)
+    config[args.key] = args.value
+    with open(args.config_file, 'w') as outfile:
+        json.dump(config, outfile)
+    os.chmod(args.config_file, 0600)
+
+
 def backup(config, s3_bucket_name=None, prefix=None):
     logger = setup_logger()
     backup_endpoint = "{}/go/api/backups".format(config["host"])
@@ -86,6 +97,11 @@ parser.add_argument("--config-file", help="Config file location", default="/etc/
 
 subparsers = parser.add_subparsers(help='commands')
 
+
+admin_parser = subparsers.add_parser("admin", help="Sets admin user password")
+admin_parser.add_argument("--password", help="Sets admin password")
+admin_parser.set_defaults(which='admin')
+
 set_parser = subparsers.add_parser("set", help="Sets config values")
 set_parser.add_argument("--key", help="Key")
 set_parser.add_argument("--value", help="Value")
@@ -113,11 +129,11 @@ if os.path.isfile(args.config_file):
         config = json.load(data_file)
 
 if args.which == "set":
-    config[args.key] = args.value
-    with open(args.config_file, 'w') as outfile:
-        json.dump(config, outfile)
-    os.chmod(args.config_file, 0600)
+    update_config(args.key,args.value)
 elif args.which == "get":
     print config.get(args.key)
 elif args.which == "backup":
     backup(config, s3_bucket_name=args.bucket, prefix=args.prefix)
+elif args.which == "admin":
+    make_go_password_file(args.password)
+    update_config("password",args.password)
