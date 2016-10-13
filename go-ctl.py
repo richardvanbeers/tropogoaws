@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import subprocess, requests, json, tarfile, os, boto3, argparse, logging
 import xml.etree.ElementTree as ET
+from gocd import Server
 
 
 def setup_logger():
@@ -22,15 +23,58 @@ def make_tarfile(output_filename, source_dir):
         tar.add(source_dir, arcname=os.path.basename(source_dir))
 
 
-def make_go_password_file(password):
+def indent(elem, level=0):
+    i = "\n" + level * "  "
+    j = "\n" + (level - 1) * "  "
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = i + "  "
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = i
+        for subelem in elem:
+            indent(subelem, level + 1)
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = j
+    else:
+        if level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = j
+    return elem
 
-    pass
 
-def update_config(key,value)
-    config[args.key] = args.value
-    with open(args.config_file, 'w') as outfile:
+def make_go_password_file(config, password):
+    server = Server(
+        "http://ec2-54-218-128-110.us-west-2.compute.amazonaws.com:8153", user=config.get("username"),
+        password=config.get("password")
+    )
+    """
+    <security>
+      <passwordFile path="/efs/htpasswd" />
+    </security>
+    """
+    response = server.get("/go/api/admin/config.xml")
+    xml = response.read()
+    md5 = response.info()["X-CRUISE-CONFIG-MD5"]
+
+    password_file = None
+    for node in ET.ElementTree(ET.fromstring(xml)).findall('.//security/passwordFile'):
+        password_file = node.get("path")
+    tree = ET.ElementTree(ET.fromstring(xml)).getroot()
+    if password_file is None:
+        if len(tree.findall('./server/security')) <= 0:
+            tree.findall('./server')[0].append(ET.Element("security"))
+        if len(tree.findall('./server/security/passwordFile')) <= 0:
+            tree.findall('./server/security')[0].append(ET.Element("passwordFile", dict(path="/tmp/passwd")))
+
+    indent(tree)
+    print ET.dump(tree)
+    server.post("/go/api/admin/config.xml", xmlFile=ET.dump(tree), md5=md5)
+
+
+def update_config(config, config_file, key, value):
+    config[key] = value
+    with open(config_file, 'w') as outfile:
         json.dump(config, outfile)
-    os.chmod(args.config_file, 0600)
+    os.chmod(config_file, 0600)
 
 
 def backup(config, s3_bucket_name=None, prefix=None):
@@ -97,7 +141,6 @@ parser.add_argument("--config-file", help="Config file location", default="/etc/
 
 subparsers = parser.add_subparsers(help='commands')
 
-
 admin_parser = subparsers.add_parser("admin", help="Sets admin user password")
 admin_parser.add_argument("--password", help="Sets admin password")
 admin_parser.set_defaults(which='admin')
@@ -122,18 +165,31 @@ config = {
     "backup_path": "/tmp/go-backups",
     "prefix": "go_server/backups",
     "host": "http://localhost:8153",
-    "bucket": "rvbgo-s3bucket-10utfkgtekakz"
+    "bucket": "rvbgo-s3bucket-10utfkgtekakz",
+    "username": "admin",
+    "password": "admin"
 }
 if os.path.isfile(args.config_file):
     with open(args.config_file) as data_file:
         config = json.load(data_file)
 
 if args.which == "set":
-    update_config(args.key,args.value)
+    update_config(
+        config=config,
+        config_file=args.config_file,
+        key=args.key,
+        value=args.value
+    )
 elif args.which == "get":
     print config.get(args.key)
 elif args.which == "backup":
     backup(config, s3_bucket_name=args.bucket, prefix=args.prefix)
 elif args.which == "admin":
-    make_go_password_file(args.password)
-    update_config("password",args.password)
+    make_go_password_file(config, args.password)
+    exit(0)
+    update_config(
+        config=config,
+        config_file=args.config_file,
+        key="admin",
+        value=args.password
+    )
