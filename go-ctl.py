@@ -67,7 +67,7 @@ def make_go_password_file(config, password):
         indent(tree)
         server.post("/go/api/admin/config.xml", xmlFile=ET.dump(tree), md5=md5)
 
-    
+
     with open(password_file, 'w') as outfile:
         outfile.write("admin:{SHA}"+"{}".format(b64encode(hashlib.sha1(password).digest())))
 
@@ -191,7 +191,6 @@ elif args.which == "backup":
     backup(config, s3_bucket_name=args.bucket, prefix=args.prefix)
 elif args.which == "admin":
     make_go_password_file(config, args.password)
-    exit(0)
     update_config(
         config=config,
         config_file=args.config_file,
