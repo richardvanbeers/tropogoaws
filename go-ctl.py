@@ -2,7 +2,8 @@
 import subprocess, requests, json, tarfile, os, boto3, argparse, logging
 import xml.etree.ElementTree as ET
 from gocd import Server
-
+import hashlib
+from base64 import b64encode
 
 def setup_logger():
     """
@@ -46,11 +47,7 @@ def make_go_password_file(config, password):
         "http://ec2-54-218-128-110.us-west-2.compute.amazonaws.com:8153", user=config.get("username"),
         password=config.get("password")
     )
-    """
-    <security>
-      <passwordFile path="/efs/htpasswd" />
-    </security>
-    """
+
     response = server.get("/go/api/admin/config.xml")
     xml = response.read()
     md5 = response.info()["X-CRUISE-CONFIG-MD5"]
@@ -59,15 +56,23 @@ def make_go_password_file(config, password):
     for node in ET.ElementTree(ET.fromstring(xml)).findall('.//security/passwordFile'):
         password_file = node.get("path")
     tree = ET.ElementTree(ET.fromstring(xml)).getroot()
+    # TODO: This is not really working, make sure you have the config file set in go server
     if password_file is None:
+        setup_logger().error("Password file not set, set it first")
+        exit(1)
         if len(tree.findall('./server/security')) <= 0:
             tree.findall('./server')[0].append(ET.Element("security"))
         if len(tree.findall('./server/security/passwordFile')) <= 0:
             tree.findall('./server/security')[0].append(ET.Element("passwordFile", dict(path="/tmp/passwd")))
+        indent(tree)
+        server.post("/go/api/admin/config.xml", xmlFile=ET.dump(tree), md5=md5)
 
-    indent(tree)
-    print ET.dump(tree)
-    server.post("/go/api/admin/config.xml", xmlFile=ET.dump(tree), md5=md5)
+    
+    with open(password_file, 'w') as outfile:
+        outfile.write("admin:{SHA}"+"{}".format(b64encode(hashlib.sha1(password).digest())))
+
+
+
 
 
 def update_config(config, config_file, key, value):
