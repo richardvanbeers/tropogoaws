@@ -194,6 +194,6 @@ elif args.which == "admin":
     update_config(
         config=config,
         config_file=args.config_file,
-        key="admin",
+        key="password",
         value=args.password
     )
